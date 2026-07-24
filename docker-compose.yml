@@ -66,6 +66,10 @@ services:
     ports:
       - "${HTTP_PORT}:80"
       - "${HTTPS_PORT}:443"
+    networks:
+      default:
+        aliases:
+          - "${NGINX_NETWORK_ALIAS:-nginx}"
     volumes:
       - nginx-confd:/etc/nginx
       - nginx-certificates:/geonode-certificates

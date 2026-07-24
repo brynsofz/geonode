@@ -26,6 +26,7 @@ import re
 import string
 import sys
 import ast
+from urllib.parse import urlparse
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
 
@@ -45,6 +46,22 @@ def shuffle(chars):
 
 _simple_chars = shuffle(string.ascii_letters + string.digits)
 _strong_chars = shuffle(string.ascii_letters + string.digits + "#%*._~")
+
+
+def _hostname_only(value):
+    value = str(value or "").strip()
+    if not value:
+        return value
+
+    parsed = urlparse(value if "://" in value else f"//{value}")
+    return parsed.hostname or value
+
+
+def _nginx_network_alias(value):
+    hostname = _hostname_only(value)
+    if hostname in ("localhost", "127.0.0.1", "::1"):
+        return "nginx"
+    return hostname
 
 
 def generate_env_file(args):
@@ -75,6 +92,7 @@ def generate_env_file(args):
                 _jsfile = json.load(_json_file)
 
         _vals_to_replace = {key: _jsfile.get(key, val) for key, val in vars(args).items() if key not in _config}
+        raw_hostname = _jsfile.get("hostname", args.hostname)
         tcp = "https" if ast.literal_eval(f"{_jsfile.get('https', args.https)}".capitalize()) else "http"
 
         _vals_to_replace["public_port"] = (
@@ -82,6 +100,9 @@ def generate_env_file(args):
         )
         _vals_to_replace["http_host"] = _jsfile.get("hostname", args.hostname) if tcp == "http" else ""
         _vals_to_replace["https_host"] = _jsfile.get("hostname", args.hostname) if tcp == "https" else ""
+        _vals_to_replace["nginx_network_alias"] = _nginx_network_alias(
+            _jsfile.get("nginx_network_alias", raw_hostname)
+        )
 
         _vals_to_replace["siteurl"] = f"{tcp}://{_jsfile.get('hostname', args.hostname)}"
         _vals_to_replace["secret_key"] = _jsfile.get("secret_key", args.secret_key) or "".join(
